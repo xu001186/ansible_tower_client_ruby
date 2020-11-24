@@ -118,7 +118,7 @@ module AnsibleTowerClient
       Collection.new(self, workflow_job_template_node_class)
     end
 
-    def method_missing(method_name, *args, &block)
+    def __method_missing(retry_num,method_name, *args, &block)
       require 'faraday'
       if instance.respond_to?(method_name)
         path = build_path_to_resource(args.shift)
@@ -131,11 +131,23 @@ module AnsibleTowerClient
         super
       end
     rescue Faraday::ConnectionFailed => err
-      raise AnsibleTowerClient::ConnectionError, err
+      if retry_num >= 5
+        raise AnsibleTowerClient::ConnectionError, err
+      else
+        retry_num = retry_num + 1
+        sleep(10)
+        __method_missing(retry_num,method_name,*args, &block)
+      end
+
     rescue Faraday::SSLError => err
       raise AnsibleTowerClient::SSLError, err
     rescue Faraday::ClientError => err
       raise AnsibleTowerClient::ConnectionError, err
+    end
+
+
+    def method_missing(method_name, *args, &block)
+      __method_missing(0,method_name, *args, &block)
     end
 
     def respond_to_missing?(method, _include_private = false)
